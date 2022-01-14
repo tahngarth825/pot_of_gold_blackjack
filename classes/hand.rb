@@ -1,8 +1,8 @@
 class Hand
   ROYALS = %w[J Q K].to_set.freeze
 
-  def initialize(cards)
-    @cards = cards
+  def initialize(cards = nil)
+    @cards = cards || []
   end
 
   def <<(card)
@@ -29,6 +29,12 @@ class Hand
 
     total
   end
+
+  def to_s
+    @cards.join(', ')
+  end
+
+  private
 
   # NOTE: number can be "A", "2", . . ., "J", "Q", "K"
   def value(number)
