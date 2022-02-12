@@ -2,7 +2,7 @@
 
 require_relative 'card'
 
-# NOTE: One should not be able to see the exact cards left
+# NOTE: No one should be able to see the exact cards left
 class Deck
   def initialize
     @cards = Card.all

@@ -1,8 +1,22 @@
+# frozen_string_literal: true
+
 class Hand
   ROYALS = %w[J Q K].to_set.freeze
 
-  def initialize(cards = nil)
+  STATES = [
+    PENDING,
+    FINISHED
+  ].freeze
+
+  PENDING  = 'pending'
+  FINISHED = 'finished'
+
+  attr_reader :bet, :cards
+
+  def initialize(bet, cards = nil)
+    @bet = bet
     @cards = cards || []
+    @state = PENDING
   end
 
   def <<(card)
@@ -58,11 +72,37 @@ class Hand
     @cards.count == 2
   end
 
-  def split
-    # TODO
+  # Splitting requires two new cards
+  # Returns the new second hand
+  def split(card1, card2)
+    add(card1)
+    self.class.new(@bet, [@cards.shift, card2])
+  end
+
+  def double(card)
+    @bet *= 2
+    add(card)
+    finish # Doubling ends your turn
+  end
+
+  def hit(card)
+    add(card)
+    finish if sum >= 21
+  end
+
+  def finished?
+    @state == FINISHED
+  end
+
+  def dealer_stay
+    sum > 17 || (sum == 17 && !soft17?)
   end
 
   private
+
+  def finish
+    @state = FINISHED
+  end
 
   def sum_with_soft
     total = 0

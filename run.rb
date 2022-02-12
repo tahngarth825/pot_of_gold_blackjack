@@ -3,4 +3,4 @@
 require 'active_support/all'
 require_relative 'classes/game'
 
-Game.start
+Game.play
