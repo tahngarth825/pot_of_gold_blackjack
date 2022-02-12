@@ -7,16 +7,14 @@ class Game
   STARTING_MONEY = 500
   MINIMUM_BET = 5
 
-  FINISH_STATES = %w[won lost push blackjack].to_set.freeze
-
-  BASE_ACTIONS = [PASS, HIT].freeze
-
   HIT         = 'hit'
-  PASS        = 'pass'
+  STAY        = 'stay'
   FREE_SPLIT  = 'free_split'
   SPLIT       = 'split'
   FREE_DOUBLE = 'free_double'
   DOUBLE      = 'double'
+
+  BASE_ACTIONS = [STAY, HIT].freeze
 
   POT_OF_GOLD_BONUS = {
     0 => 0,
@@ -29,8 +27,8 @@ class Game
     7 => 1000
   }.freeze
 
-  def self.start
-    new.start
+  def self.play
+    new.play
   end
 
   def initialize
@@ -47,6 +45,7 @@ class Game
   private
 
   def start
+    puts "----- STARTING GAME -----"
     reset_state
 
     bet_money
@@ -64,15 +63,22 @@ class Game
   end
 
   def bet_money
-    puts "Bet your main amount. Min: #{MINIMUM_BET}, Max: #{@money}"
+    puts 'Bet your main amount.'
+    puts "Min: #{MINIMUM_BET}, Max: #{@money}"
 
     @original_bet = prompt_bet
+
+    puts "\n"
   end
 
   def bet_side
-    puts 'Bet your side bet. Enter 0 to skip.'
+    puts 'Bet your side bet.'
+    puts "Min: #{MINIMUM_BET}, Max: #{@money}"
+    puts 'Enter 0 to skip.'
 
     @side_bet = prompt_bet(optional: true)
+
+    puts "\n"
   end
 
   def prompt_bet(optional: false)
@@ -85,6 +91,7 @@ class Game
     bet_amount = nil
 
     while bet_amount.nil?
+      puts 'Input bet:'
       bet_amount = gets.chomp.to_i
 
       break if bet_amount.between?(MINIMUM_BET, @money)
@@ -112,54 +119,88 @@ class Game
   end
 
   def play_round
-    # User's turn
+    puts "\n"
+    puts "----- User's turn -----"
     until @player_hands.all?(&:finished?)
-      display_cards
-
       @player_hands.each do |hand|
-        until hand.finished?
-          puts "Current hand: #{hand}"
+        puts "Your hand: #{hand}"
+        puts "Sum: #{hand.sum}"
 
+        until hand.finished?
+          display_dealer
           possible_actions = determine_actions(hand)
 
-          puts "You can do one of the following: #{possible_actions}"
+          puts "You can: #{possible_actions}"
 
           action = gets.chomp
           until possible_actions.include?(action)
             puts 'You did not pick a valid option'
-            puts "You can do one of the following: #{possible_actions}"
+            puts "You can: #{possible_actions}"
             action = gets.chomp
           end
 
           resolve_action(action, hand)
+
+          puts "\n"
+          puts "Your hand is now: #{hand}"
+          puts "Your hand has a sum of #{hand.sum}"
+          sleep 1
         end
       end
     end
 
-    # Dealer's turn
-    @dealer_hand.hit(@deck.draw) until @dealer_hand.dealer_stay
+    puts "\n"
+    puts "----- Dealer's turn. ------"
+    puts "Dealer's hand is: #{@dealer_hand}"
+    puts "Dealer's sum is: #{@dealer_hand.sum}"
+    until @dealer_hand.dealer_stay
+      @dealer_hand.hit(@deck.draw)
+      puts "Dealer has sum of #{@dealer_hand.sum}"
+      sleep 2
+    end
+  end
+
+  # NOTE: User should not know dealer's sum
+  def display_dealer
+    puts "Dealer card showing: #{@dealer_hand.first}"
+    puts "\n"
   end
 
   def display_cards
-    puts "Your hands: #{@player_hands}"
-    puts "Dealer card showing: #{@dealer_hand.first}"
+    puts "\n"
+    puts "--------------------------------------------"
+    puts "Your hands: #{@player_hands.map(&:to_s)}"
+    puts "Sum: #{@player_hands.map(&:sum)}"
+
+    display_dealer
   end
 
   def resolve_hand(hand)
+    puts "\n"
+    puts "For hand: #{hand}"
+
     if hand.blackjack?
-      @money += 1.5 * hand.bet
+      gains = 1.5 * hand.bet
+      @money += gains
+
+      puts "BLACKJACK! You won: $#{gains}!"
     elsif hand.bust?
-      # Do nothing
-    elsif dealer_sum == 22
-      # Do nothing
+      puts "BUST!"
+    elsif @dealer_hand.sum == 22
+      puts "PUSH! Dealer has 22!"
     elsif @dealer_hand.bust?
       @money += hand.bet
-    elsif player_sum > dealer_sum
+      puts "Dealer busts! You won: $#{hand.bet}"
+    elsif hand.sum > @dealer_hand.sum
       @money += hand.bet
-    elsif dealer_sum > player_sum
-      # Do nothing
-    else # Push
-      # Do nothing
+
+      puts "Your sum of #{hand.sum} beats dealer's sum of : #{@dealer_hand.sum}"
+      puts "You win: $#{hand.bet}"
+    elsif @dealer_hand.sum > hand.sum
+      puts "Your sum of #{hand.sum} loses to dealer's sum of : #{@dealer_hand.sum}"
+      puts "Dealer beat you :("
+    else
+      puts "Push! Same value hands"
     end
   end
 
@@ -168,13 +209,13 @@ class Game
 
     if hand.can_free_split?
       actions << FREE_SPLIT
-    elsif hand.can_split? && @money >= original_bet
+    elsif hand.can_split? && @money >= @original_bet
       actions << SPLIT
     end
 
     if hand.can_free_double?
       actions << FREE_DOUBLE
-    elsif hand.can_double? && @money >= original_bet
+    elsif hand.can_double? && @money >= @original_bet
       actions << DOUBLE
     end
 
@@ -185,7 +226,7 @@ class Game
     case action
     when HIT
       hand.hit(@deck.draw)
-    when PASS
+    when STAY
       hand.finish
     when FREE_SPLIT
       @player_hands << hand.split(@deck.draw, @deck.draw)
@@ -202,25 +243,30 @@ class Game
     end
   end
 
-  def player_sum
-    @player_hands.sum
-  end
-
-  def dealer_sum
-    @dealer_hand.sum
-  end
-
   def resolve_game
     @player_hands.each do |hand|
       resolve_hand(hand)
     end
 
-    if @side_bet.positive? && @gold_coins.positive?
-      @money += @side_bet * POT_OF_GOLD_BONUS[@gold_coins]
+    if @side_bet.positive?
+      if @gold_coins.positive?
+        gains = @side_bet * POT_OF_GOLD_BONUS[@gold_coins]
+        puts "\n"
+        puts "Your side bet won!"
+        puts "You had #{@gold_coins} gold coins!"
+        puts "That nets you: $#{gains}"
+        @money += gains
+      else
+        puts "\n"
+        puts "You lost your side bet :("
+      end
     end
   end
 
   def prompt_play_again
+    puts "\n"
+    puts "----- GAME OVER -----"
+    puts "\n"
     play if @money > MINIMUM_BET
 
     raise "You're out of money!"

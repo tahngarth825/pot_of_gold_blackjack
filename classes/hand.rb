@@ -3,13 +3,13 @@
 class Hand
   ROYALS = %w[J Q K].to_set.freeze
 
+  PENDING  = 'pending'
+  FINISHED = 'finished'
+
   STATES = [
     PENDING,
     FINISHED
   ].freeze
-
-  PENDING  = 'pending'
-  FINISHED = 'finished'
 
   attr_reader :bet, :cards
 
@@ -21,6 +21,10 @@ class Hand
 
   def <<(card)
     @cards << card
+
+    finish if sum >= 21
+
+    card
   end
   alias :add <<
 
@@ -76,18 +80,30 @@ class Hand
   # Returns the new second hand
   def split(card1, card2)
     add(card1)
-    self.class.new(@bet, [@cards.shift, card2])
+    new_hand = self.class.new(@bet, [@cards.shift, card2])
+
+    puts "You split!"
+    puts "Your new hands are: #{new_hand} and #{self}"
+
+    new_hand
   end
 
   def double(card)
     @bet *= 2
     add(card)
+
+    puts "Drew a #{card}!"
+
     finish # Doubling ends your turn
   end
 
   def hit(card)
     add(card)
-    finish if sum >= 21
+    puts "Drew a #{card.to_s}"
+
+    return puts 'BUST!' if sum > 21
+
+    puts '21!' if sum == 21
   end
 
   def finished?
@@ -98,11 +114,11 @@ class Hand
     sum > 17 || (sum == 17 && !soft17?)
   end
 
-  private
-
   def finish
     @state = FINISHED
   end
+
+  private
 
   def sum_with_soft
     total = 0
